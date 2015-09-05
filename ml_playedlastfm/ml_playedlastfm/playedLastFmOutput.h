@@ -1,6 +1,7 @@
 #pragma once
 
-#include "windows.h"
+#include "Windows.h"
+#include "stdio.h"
 
 class playedLastFmOutput
 {
@@ -10,11 +11,14 @@ public:
 
 	bool writeMessage( wchar_t* message );
 
+	static const wchar_t* kLogFilename;
+
 private:
 	bool closeFile();
 	bool openFile();
 
-	bool mIsOpen;
-	HWND mWinampHandle;
+	bool  mIsOpen;
+	HWND  mWinampHandle;
+	FILE* mOutputFile;
 };
 
