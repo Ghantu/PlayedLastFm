@@ -17,6 +17,8 @@
 #define SYNC_INTERVAL 60 * 60
 #define TEMP_FILE_PATH L"C:\\temp\\played.xml"
 
+class playedLastFmOutput;
+
 int          init( void );
 void         quit( void );
 INT_PTR      MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR param3 );
@@ -32,5 +34,7 @@ wchar_t lastFmUsername[256];
 HANDLE  threadHandle;
 DWORD   threadId;
 bool    quitThread;
+
+playedLastFmOutput* output;
 
 #endif // ml_playedlastfm_h

@@ -13,6 +13,8 @@
 
 #include "ml_playedlastfm.h"
 
+#include "playedLastFmOutput.h"
+
 winampMediaLibraryPlugin PlayedLastFm =
 {
   MLHDR_VER,
@@ -32,6 +34,7 @@ winampMediaLibraryPlugin PlayedLastFm =
 int init()
 {
   quitThread = false;
+  output = new playedLastFmOutput( PlayedLastFm.hwndWinampParent );
   threadHandle = CreateThread(
 	  NULL,                   // default security attributes
 	  0,                      // use default stack size
