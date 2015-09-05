@@ -13,6 +13,8 @@
 
 #include "ml_playedlastfm.h"
 
+#include "playedLastFmOutput.h"
+
 winampMediaLibraryPlugin PlayedLastFm =
 {
   MLHDR_VER,
@@ -31,7 +33,9 @@ winampMediaLibraryPlugin PlayedLastFm =
 // Reads config values from ini file
 int init()
 {
+  MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
   quitThread = false;
+  output = new playedLastFmOutput( PlayedLastFm.hwndWinampParent );
   threadHandle = CreateThread(
 	  NULL,                   // default security attributes
 	  0,                      // use default stack size
@@ -46,27 +50,28 @@ int init()
 // Writes values back to ini file
 void quit()
 {
-  //MessageBox(0, L"Setting quitThread true.", L"", MB_OK);
+  output->writeMessage( L"Setting quitThread true." );
   quitThread = true;
-  //MessageBox(0, L"Waiting for thread.", L"", MB_OK);
+  output->writeMessage( L"Waiting for thread." );
   DWORD waitReturn = WaitForSingleObject( threadHandle, 1000 );
   switch ( waitReturn )
   {
   case WAIT_FAILED:
-	  MessageBox(0, L"Failed waiting for thread.", L"", MB_OK);
+	  output->writeMessage( L"Failed waiting for thread." );
 	  break;
   case WAIT_OBJECT_0:
-	  MessageBox(0, L"The state of the specified object is signaled.", L"", MB_OK);
+	  output->writeMessage( L"The state of the specified object is signaled." );
 	  CloseHandle( threadHandle );
 	  break;
   case WAIT_TIMEOUT:
-	  MessageBox(0, L"The time-out interval elapsed, and the object's state is nonsignaled.", L"", MB_OK);
+	  output->writeMessage( L"The time-out interval elapsed, and the object's state is nonsignaled." );
 	  break;
   default:
-	  MessageBox(0, L"Unknown return code.", L"", MB_OK);
+	  output->writeMessage( L"Unknown return code." );
 	  break;
   }
-  //MessageBox(0, L"Returning from quit().", L"", MB_OK);
+  output->writeMessage( L"Returning from quit().\n" );
+  delete output;
 }
 
 // Receives messages from Winamp -- this is the primary way to do IO
@@ -81,7 +86,7 @@ INT_PTR MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR p
 	  param2,
 	  param3
 	  );
-	//MessageBox(0, msg, L"", MB_OK);
+	output->writeMessage( msg );
 	return NULL;
 }
 
@@ -99,13 +104,13 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
   const size_t kPathLen = 512;
   wchar_t iniPath[kPathLen];
   getInitFileName( iniPath, kPathLen );
-  MessageBox( PlayedLastFm.hwndWinampParent, iniPath, L"", MB_OK );
+  output->writeMessage( iniPath );
   GetPrivateProfileString( L"playedlastfm", L"Username", NULL, lastFmUsername, 256, iniPath );
-  MessageBox( PlayedLastFm.hwndWinampParent, lastFmUsername, L"", MB_OK );
+  output->writeMessage( lastFmUsername );
   lastSyncTime = GetPrivateProfileInt( L"playedlastfm", L"lastsync", 0, iniPath );
   wchar_t msg[256];
   wsprintf( msg, L"Last sync time is %d", lastSyncTime );
-  MessageBox( PlayedLastFm.hwndWinampParent, msg, L"", MB_OK );
+  output->writeMessage( msg );
   syncInterval = SYNC_INTERVAL;
 
   while ( !quitThread )
@@ -119,13 +124,13 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
     Sleep( 100 ); // one tenth of a second -- want to respond quickly to quitThread becoming true
   }
 
-  MessageBox( PlayedLastFm.hwndWinampParent, iniPath, L"", MB_OK );
+  output->writeMessage( iniPath );
   //WritePrivateProfileString( L"playedlastfm", L"Username", lastFmUsername, iniPath );
-  MessageBox( PlayedLastFm.hwndWinampParent, lastFmUsername, L"", MB_OK );
+  output->writeMessage( lastFmUsername );
   wchar_t syncTimeStr[64];
   wsprintf( syncTimeStr, L"%d", lastSyncTime );
   //WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
-  MessageBox( PlayedLastFm.hwndWinampParent, syncTimeStr, L"", MB_OK );
+  output->writeMessage( syncTimeStr );
 
   return 0;
 }
@@ -176,11 +181,11 @@ void performLastFmSync()
 
 	if ( hOpenUrl == NULL )
 	{
-		MessageBox( PlayedLastFm.hwndWinampParent, L"Could not access URL!", L"", MB_OK );
+		output->writeMessage( L"Could not access URL!" );
 	}
 	else
 	{
-		MessageBox( PlayedLastFm.hwndWinampParent, L"Accessed URL!", L"", MB_OK );
+		output->writeMessage( L"Accessed URL!" );
 
 		DWORD totalBytes = 0;
 		FILE * tempFile;
@@ -195,7 +200,7 @@ void performLastFmSync()
 			{
 				if ( bytesRead == 0 )
 				{
-					MessageBox( PlayedLastFm.hwndWinampParent, L"Reached end of file!", L"", MB_OK );
+					output->writeMessage( L"Reached end of file!" );
 					break;
 				}
 
@@ -203,7 +208,7 @@ void performLastFmSync()
 				totalBytes += bytesRead;
 				wchar_t writeMessage[256];
 				wsprintf( writeMessage, L"Wrote %d bytes to temp file", bytesRead );
-				MessageBox( PlayedLastFm.hwndWinampParent, writeMessage, L"", MB_OK );
+				output->writeMessage( writeMessage );
 
 			}
 
@@ -211,23 +216,23 @@ void performLastFmSync()
 
 			wchar_t closeMessage[256];
 			wsprintf( closeMessage, L"Closed temp file, wrote %d bytes", totalBytes );
-			MessageBox( PlayedLastFm.hwndWinampParent, closeMessage, L"", MB_OK );
+			output->writeMessage( closeMessage );
 		}
 		else
 		{
-			MessageBox( PlayedLastFm.hwndWinampParent, L"Couldn't open temp file!", L"", MB_OK );
+			output->writeMessage( L"Couldn't open temp file!" );
 		}
 
 		InternetCloseHandle( hOpenUrl );
 
 		// Re-open file now that we know the size
-		tinyxml2::XMLDocument doc;
+		/*tinyxml2::XMLDocument doc;
 		doc.LoadFile( "C:\\temp\\played.xml" );
 		
 		int parseError = doc.ErrorID();
 		wchar_t firstNodeName[256];
 		wsprintf( firstNodeName, L"Parse error: %d", parseError );
-		MessageBox( PlayedLastFm.hwndWinampParent, firstNodeName, L"", MB_OK );
+		output->writeMessage( firstNodeName );
 
 		int totalPlays = 1;
 		tinyxml2::XMLElement* recentTracksElement = doc.FirstChildElement()->FirstChildElement();
@@ -248,11 +253,11 @@ void performLastFmSync()
 		{
 			wsprintf( firstNodeName, L"Other error!" );
 		}
-		MessageBox( PlayedLastFm.hwndWinampParent, firstNodeName, L"", MB_OK );
+		output->writeMessage( firstNodeName );
 
 		const char* firstArtist = doc.FirstChildElement()->FirstChildElement()->FirstChildElement()->FirstChildElement()->ToText()->Value();
 		wsprintf( firstNodeName, L"First artist: %s", firstArtist );
-		MessageBox( PlayedLastFm.hwndWinampParent, firstNodeName, L"", MB_OK );
+		output->writeMessage( firstNodeName );*/
 	}
 	InternetCloseHandle( hSession );
   }
