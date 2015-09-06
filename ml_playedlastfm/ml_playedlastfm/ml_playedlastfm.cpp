@@ -196,11 +196,14 @@ void performLastFmSync()
 
 			//   request page i
 			//   for each track in page
-			//     query from media library 
-			//     update timestamp
-			//     ++numplays
-			//     if last track in page
-			//       update lastSyncTime
+			if ( getTracksPage( page ) )
+			{
+				//     query from media library 
+				//     update timestamp
+				//     ++numplays
+				//     if last track in page
+				//       update lastSyncTime
+			}
 		}
 	}
 }
@@ -215,8 +218,9 @@ bool getNumTracks( int* numTracks )
 		wchar_t req[1024];
 		wchar_t currentSyncString[256];
 		StringCbPrintfW( req, 1024, REQUEST_STRING, lastFmUsername, API_KEY, 1, lastSyncTime ); // get first page of results
-		StringCbPrintfW( currentSyncString, 256, L"%ld", currentSyncTime ); // It didn't like adding currentSyncTime to the printf for some reason,
-                                                                            // so we'll cat currentSyncString onto the end of req
+		// It didn't like adding currentSyncTime to the printf for some reason,
+		// so we'll cat currentSyncString onto the end of req
+		StringCbPrintfW( currentSyncString, 256, L"%ld", currentSyncTime ); 
 		wcscat_s( req, currentSyncString );
 		HINTERNET hOpenUrl = InternetOpenUrl( hSession, req, NULL, 0, 1, 1 );
 
@@ -280,47 +284,65 @@ bool getNumTracks( int* numTracks )
 bool parseTempFile( int* numTracks )
 {
 	bool retVal = false;
+	wchar_t parseMsg[256];
 
 	// Re-open file now that we know the size
 	tinyxml2::XMLDocument doc;
 	doc.LoadFile( "C:\\temp\\played.xml" );
 
 	int parseError = doc.ErrorID();
-	wchar_t parseErrorMsg[256];
-	wsprintf( parseErrorMsg, L"Parse error: %d", parseError );
-	output->writeMessage( parseErrorMsg );
-
-	int totalPlays = 1;
-	tinyxml2::XMLElement* lfmElement = doc.FirstChildElement();
-	const char* lfmText = lfmElement->GetText();
-	wsprintf( parseErrorMsg, L"lfmText is '%s'", lfmText );
-	output->writeMessage( parseErrorMsg );
-
-	tinyxml2::XMLElement* recentTracksElement = lfmElement->FirstChildElement();
-	const char* recentTracksText = recentTracksElement->GetText();
-	wsprintf( parseErrorMsg, L"recentTracksText is '%s'", lfmText );
-	output->writeMessage( parseErrorMsg );
-
-	tinyxml2::XMLError playsError = recentTracksElement->QueryIntAttribute( "total", numTracks );
-	if ( playsError == tinyxml2::XML_WRONG_ATTRIBUTE_TYPE )
+	if ( parseError != 0 )
 	{
-		wsprintf( parseErrorMsg, L"Wrong attribute type!" );
-	}
-	else if ( playsError == tinyxml2::XML_NO_ATTRIBUTE )
-	{
-		wsprintf( parseErrorMsg, L"No attribute!" );
-	}
-	else if ( playsError == tinyxml2::XML_NO_ERROR )
-	{
-		wsprintf( parseErrorMsg, L"total plays: %d", *numTracks );
-		retVal = true;
+		tinyxml2::XMLElement* lfmElement = doc.FirstChildElement();
+
+		if ( lfmElement )
+		{
+			tinyxml2::XMLElement* recentTracksElement = lfmElement->FirstChildElement();
+			if ( recentTracksElement )
+			{
+				tinyxml2::XMLError playsError = recentTracksElement->QueryIntAttribute( "total", numTracks );
+
+				if ( playsError == tinyxml2::XML_WRONG_ATTRIBUTE_TYPE )
+				{
+					output->writeMessage( L"Wrong attribute type!" );
+				}
+				else if ( playsError == tinyxml2::XML_NO_ATTRIBUTE )
+				{
+					output->writeMessage( L"No attribute!" );
+				}
+				else if ( playsError == tinyxml2::XML_NO_ERROR )
+				{
+					wsprintf( parseMsg, L"total plays: %d", *numTracks );
+					output->writeMessage( parseMsg );
+					retVal = true;
+				}
+				else
+				{
+					output->writeMessage( L"Other error!" );
+				}
+			}
+			else
+			{
+				output->writeMessage( L"Couldn't find recent tracks element" );
+			}
+		}
+		else
+		{
+			output->writeMessage( L"Couldn't find lfm element" );
+		}
 	}
 	else
 	{
-		wsprintf( parseErrorMsg, L"Other error!" );
+		wsprintf( parseMsg, L"Parse error: %d", parseError );
+		output->writeMessage( parseMsg );
 	}
-	output->writeMessage( parseErrorMsg );
+
 	return retVal;
+}
+
+bool getTracksPage( int numTracks )
+{
+	return false;
 }
 
 /*
