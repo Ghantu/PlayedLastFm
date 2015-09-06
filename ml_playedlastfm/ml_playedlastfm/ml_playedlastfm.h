@@ -13,7 +13,7 @@
 
 // API Key for Last.fm API access
 #define API_KEY L"a12776f4ca2ca23f426a16d1d44d0908"
-#define REQUEST_STRING L"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=%s&api_key=%s&limit=1&page=%d&from=%ld&to="
+#define REQUEST_STRING L"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=%s&api_key=%s&limit=%d&page=%d&from=%ld&to="
 #define INIFILENAME L"\\Plugins\\ml_playedlastfm.ini"
 #define WINDOWS_TICK 10000000
 #define SEC_TO_UNIX_EPOCH 11644473600LL
@@ -23,6 +23,10 @@
 
 class playedLastFmOutput;
 
+typedef struct 
+{
+} TrackInfo;
+
 int          init( void );
 void         quit( void );
 INT_PTR      MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR param3 );
@@ -30,9 +34,9 @@ void         performLastFmSync();
 void         getInitFileName( wchar_t* filename, size_t numChars );
 DWORD WINAPI PlayedLastFmThread( LPVOID lpParam );
 time_t       getCurrentTime();
-bool         getNumTracks( int* numTracks );
-bool         getTracksPage( int tracksPage );
 bool         parseTempFile( int* numTracks );
+bool         parseTempFile( TrackInfo* trackInfo );
+bool         queryLastFm( int limit, int page );
 
 time_t  lastSyncTime;
 time_t  currentSyncTime;

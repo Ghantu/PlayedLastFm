@@ -171,53 +171,84 @@ void performLastFmSync()
 
 	// request 1 track in timespan
 	// use that result to get number of pages
-	if ( getNumTracks( &numTracks ) )
+	//if ( getNumTracks( &numTracks ) )
+	if ( queryLastFm( 1, 1 ) )
 	{
-		numPages = ( numTracks / TRACKS_PER_PAGE ) + ( numTracks % TRACKS_PER_PAGE > 0 ? 1 : 0 );
-
-		wchar_t syncMessage[1024];
-		wsprintf( syncMessage, L"Found %d tracks, on %d pages.", numTracks, numPages );
-		output->writeMessage( syncMessage );
-
-		// for each page i from n...i...1
-		for ( int page = numPages; numPages > 0; --numPages )
+		if ( parseTempFile( &numTracks ) )
 		{
-			//   check if we should quit
-			if ( quitThread )
-			{
-				wsprintf( syncMessage, L"Quit was set before processing page %d of %d!", page, numPages );
-				output->writeMessage( syncMessage );
+			numPages = ( numTracks / TRACKS_PER_PAGE ) + ( numTracks % TRACKS_PER_PAGE > 0 ? 1 : 0 );
 
-				break;
-			}
-
-			wsprintf( syncMessage, L"Processing page %d of %d.", page, numPages );
+			wchar_t syncMessage[1024];
+			wsprintf( syncMessage, L"Found %d tracks, on %d pages.", numTracks, numPages );
 			output->writeMessage( syncMessage );
 
-			//   request page i
-			//   for each track in page
-			if ( getTracksPage( page ) )
+			// for each page i from n...i...1
+			for ( int page = numPages; page > 0; --page )
 			{
-				//     query from media library 
-				//     update timestamp
-				//     ++numplays
-				//     if last track in page
-				//       update lastSyncTime
+				//   check if we should quit
+				if ( quitThread )
+				{
+					wsprintf( syncMessage, L"Quit was set before processing page %d of %d!", page, numPages );
+					output->writeMessage( syncMessage );
+
+					break;
+				}
+
+				wsprintf( syncMessage, L"Processing page %d of %d.", page, numPages );
+				output->writeMessage( syncMessage );
+
+				//   request page i
+				if ( queryLastFm( TRACKS_PER_PAGE, page ) )
+				{
+					TrackInfo trackInfo[TRACKS_PER_PAGE];
+
+					if ( parseTempFile( trackInfo ) )
+					{
+						for ( int track = 0; track < TRACKS_PER_PAGE; ++track )
+						{
+					//   for each track in page
+					//     query from media library 
+					//     update timestamp
+					//     ++numplays
+					//     if last track in page
+					//       update lastSyncTime
+						}
+					}
+					else
+					{
+						wsprintf( syncMessage, L"Couldn't parse page %d!", page );
+						output->writeMessage( syncMessage );
+					}
+				}
+				else
+				{
+					wsprintf( syncMessage, L"Couldn't query page %d!", page );
+					output->writeMessage( syncMessage );
+				}
 			}
 		}
+		else
+		{
+			output->writeMessage( L"Couldn't parse temp file for number of tracks!" );
+		}
+	}
+	else
+	{
+		output->writeMessage( L"Couldn't query Last.fm for number of tracks!" );
 	}
 }
 
-bool getNumTracks( int* numTracks )
+bool queryLastFm( int limit, int page )
 {
 	bool returnVal = false;
 	HINTERNET hSession = InternetOpen( USER_AGENT, 0, NULL, NULL, 0 );
 
 	if ( hSession != NULL )
 	{
+		wchar_t queryMsg[1200];
 		wchar_t req[1024];
 		wchar_t currentSyncString[256];
-		StringCbPrintfW( req, 1024, REQUEST_STRING, lastFmUsername, API_KEY, 1, lastSyncTime ); // get first page of results
+		StringCbPrintfW( req, 1024, REQUEST_STRING, lastFmUsername, API_KEY, limit, page, lastSyncTime ); // get first page of results
 		// It didn't like adding currentSyncTime to the printf for some reason,
 		// so we'll cat currentSyncString onto the end of req
 		StringCbPrintfW( currentSyncString, 256, L"%ld", currentSyncTime ); 
@@ -226,11 +257,13 @@ bool getNumTracks( int* numTracks )
 
 		if ( hOpenUrl == NULL )
 		{
-			output->writeMessage( L"Could not access URL!" );
+			wsprintf( queryMsg, L"Could not access URL '%s'!", req );
+			output->writeMessage( queryMsg );
 		}
 		else
 		{
-			output->writeMessage( L"Accessed URL!" );
+			wsprintf( queryMsg,  L"Accessed URL '%s'.", req ); 
+			output->writeMessage( queryMsg );
 
 			DWORD totalBytes = 0;
 			FILE * tempFile;
@@ -262,11 +295,7 @@ bool getNumTracks( int* numTracks )
 				wchar_t closeMessage[256];
 				wsprintf( closeMessage, L"Closed temp file, wrote %d bytes", totalBytes );
 				output->writeMessage( closeMessage );
-
-				if ( parseTempFile( numTracks ) )
-				{
-					returnVal = true;
-				}
+				returnVal = true;
 			}
 			else
 			{
@@ -291,7 +320,7 @@ bool parseTempFile( int* numTracks )
 	doc.LoadFile( "C:\\temp\\played.xml" );
 
 	int parseError = doc.ErrorID();
-	if ( parseError != 0 )
+	if ( parseError == 0 )
 	{
 		tinyxml2::XMLElement* lfmElement = doc.FirstChildElement();
 
@@ -340,9 +369,11 @@ bool parseTempFile( int* numTracks )
 	return retVal;
 }
 
-bool getTracksPage( int numTracks )
+bool parseTempFile( TrackInfo* trackInfo )
 {
-	return false;
+	bool retVal = false;
+
+	return retVal;
 }
 
 /*
