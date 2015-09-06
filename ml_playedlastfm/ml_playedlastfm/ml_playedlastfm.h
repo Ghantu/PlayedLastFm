@@ -8,7 +8,10 @@
 // plugin name/title
 #define PLUGIN_NAME "Played Last via Last.fm"
 
+// User-Agent string sent to Last.fm server
 #define USER_AGENT L"Winamp PlayedLastFm"
+
+// API Key for Last.fm API access
 #define API_KEY L"a12776f4ca2ca23f426a16d1d44d0908"
 #define REQUEST_STRING L"http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=%s&api_key=%s&limit=1&page=%d&from=%ld&to="
 #define INIFILENAME L"\\Plugins\\ml_playedlastfm.ini"
@@ -16,6 +19,7 @@
 #define SEC_TO_UNIX_EPOCH 11644473600LL
 #define SYNC_INTERVAL 60 * 60
 #define TEMP_FILE_PATH L"C:\\temp\\played.xml"
+#define TRACKS_PER_PAGE 200
 
 class playedLastFmOutput;
 
@@ -26,6 +30,9 @@ void         performLastFmSync();
 void         getInitFileName( wchar_t* filename, size_t numChars );
 DWORD WINAPI PlayedLastFmThread( LPVOID lpParam );
 time_t       getCurrentTime();
+bool         getNumTracks( int* numTracks );
+bool         getTracksPage( int tracksPage );
+bool         parseTempFile( int* numTracks );
 
 time_t  lastSyncTime;
 time_t  currentSyncTime;
@@ -34,6 +41,7 @@ wchar_t lastFmUsername[256];
 HANDLE  threadHandle;
 DWORD   threadId;
 bool    quitThread;
+int     numPages;
 
 playedLastFmOutput* output;
 
