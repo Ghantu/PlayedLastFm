@@ -5,6 +5,8 @@
 
 #include <windows.h>
 
+#include <string>
+
 // plugin name/title
 #define PLUGIN_NAME "Played Last via Last.fm"
 
@@ -25,9 +27,9 @@ class playedLastFmOutput;
 
 typedef struct 
 {
-	char* artistName;
-	char* trackName;
-	char* albumName;
+	std::string artistName;
+	std::string trackName;
+	std::string albumName;
 	int dateUts;
 } TrackInfo;
 
@@ -39,7 +41,8 @@ void         getInitFileName( wchar_t* filename, size_t numChars );
 DWORD WINAPI PlayedLastFmThread( LPVOID lpParam );
 time_t       getCurrentTime();
 bool         parseTempFile( int* numTracks );
-bool         parseTempFile( TrackInfo* trackInfo );
+bool         parseTempFile( TrackInfo* trackInfo, int* tracksOnPage );
+void         printTrack( int trackNum, TrackInfo track );
 bool         queryLastFm( int limit, int page );
 
 time_t  lastSyncTime;

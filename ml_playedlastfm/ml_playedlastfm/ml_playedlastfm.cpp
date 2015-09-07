@@ -118,8 +118,17 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 		currentSyncTime = getCurrentTime();
 		if ( currentSyncTime > lastSyncTime + syncInterval )
 		{
+			// printf and time_t don't get along apparently, so we have to do this bullshit
+			wchar_t syncString[256];
+			wsprintf( msg, L"Current sync time is %ld", currentSyncTime );
+			StringCbPrintfW( syncString, 256, L", last sync time is %ld", lastSyncTime ); 
+			wcscat_s( msg, syncString );
+			StringCbPrintfW( syncString, 256, L", interval is %ld", (currentSyncTime - lastSyncTime) ); 
+			wcscat_s( msg, syncString );
+			StringCbPrintfW( syncString, 256, L" (greater than %ld); performing sync.", syncInterval ); 
+			wcscat_s( msg, syncString );
+			output->writeMessage( msg );
 			performLastFmSync();
-			lastSyncTime = currentSyncTime;
 		}
 		Sleep( 100 ); // one tenth of a second -- want to respond quickly to quitThread becoming true
 	}
@@ -171,7 +180,6 @@ void performLastFmSync()
 
 	// request 1 track in timespan
 	// use that result to get number of pages
-	//if ( getNumTracks( &numTracks ) )
 	if ( queryLastFm( 1, 1 ) )
 	{
 		if ( parseTempFile( &numTracks ) )
@@ -183,7 +191,7 @@ void performLastFmSync()
 			output->writeMessage( syncMessage );
 
 			// for each page i from n...i...1
-			for ( int page = numPages; page > 0; --page )
+			for ( int page = numPages; page > numPages - 1; --page )
 			{
 				//   check if we should quit
 				if ( quitThread )
@@ -201,17 +209,29 @@ void performLastFmSync()
 				if ( queryLastFm( TRACKS_PER_PAGE, page ) )
 				{
 					TrackInfo trackInfo[TRACKS_PER_PAGE];
+					int tracksOnPage = 0;
 
-					if ( parseTempFile( trackInfo ) )
+					if ( parseTempFile( trackInfo, &tracksOnPage ) )
 					{
-						for ( int track = 0; track < TRACKS_PER_PAGE; ++track )
+						wsprintf( syncMessage, L"Parsed %d tracks from page %d.", tracksOnPage, page );
+						output->writeMessage( syncMessage );
+						for ( int trackNum = 0; trackNum < tracksOnPage; ++trackNum )
 						{
-					//   for each track in page
-					//     query from media library 
-					//     update timestamp
-					//     ++numplays
-					//     if last track in page
-					//       update lastSyncTime
+							//   for each track in page
+							printTrack( trackNum, trackInfo[trackNum] );
+
+							//     query from media library 
+							//     update timestamp
+							//     ++numplays
+							//     if last track in page
+							if ( trackNum == tracksOnPage - 1 )
+							{
+								//       update lastSyncTime
+								lastSyncTime = trackInfo[trackNum].dateUts + 1;
+								wsprintf( syncMessage, L"Finished parsing page %d, set lastSynctime to %d.", page, lastSyncTime );
+								output->writeMessage( syncMessage );
+							}
+
 						}
 					}
 					else
@@ -226,6 +246,8 @@ void performLastFmSync()
 					output->writeMessage( syncMessage );
 				}
 			}
+
+			output->writeMessage( L"Finished updating tracks!" );
 		}
 		else
 		{
@@ -369,11 +391,10 @@ bool parseTempFile( int* numTracks )
 	return retVal;
 }
 
-bool parseTempFile( TrackInfo* trackInfo )
+bool parseTempFile( TrackInfo* trackInfo, int* tracksOnPage )
 {
 	bool retVal = false;
-	wchar_t parseMsg[256];
-	int trackNum = 0;
+	*tracksOnPage = 0;
 
 	tinyxml2::XMLDocument doc;
 	doc.LoadFile( "C:\\temp\\played.xml" );
@@ -392,40 +413,37 @@ bool parseTempFile( TrackInfo* trackInfo )
 
 				if ( recentTracksElement )
 				{
-					tinyxml2::XMLElement* trackElement = recentTracksElement->LastChildElement(); // FirstChildElement();
-					while ( trackElement && trackNum < TRACKS_PER_PAGE )
+					tinyxml2::XMLElement* trackElement = recentTracksElement->LastChildElement();
+					while ( trackElement && *tracksOnPage < TRACKS_PER_PAGE )
 					{
 						if ( !trackElement->Attribute( "nowplaying", "true" ) )
 						{
 							const char* artistName = (trackElement->FirstChildElement( "artist" )->GetText());
 							if ( !artistName ) { artistName = ""; }
-							size_t artistLen = strlen(artistName);
-							trackInfo[trackNum].artistName = new char[artistLen+1];
-							strncpy( trackInfo[trackNum].artistName, artistName, artistLen+1 );
+							trackInfo[*tracksOnPage].artistName = std::string( artistName );
 
 							const char* trackName = (trackElement->FirstChildElement( "name" )->GetText());
 							if ( !trackName ) { trackName = ""; }
-							size_t trackLen = strlen(trackName);
-							trackInfo[trackNum].trackName = new char[artistLen+1];
-							strncpy( trackInfo[trackNum].trackName, trackName, trackLen+1 );
+							trackInfo[*tracksOnPage].trackName = std::string( trackName );
 
 							const char* albumName = (trackElement->FirstChildElement( "album" )->GetText());
 							if ( !albumName ) { albumName = ""; }
-							size_t albumLen = strlen(albumName);
-							trackInfo[trackNum].albumName = new char[artistLen+1];
-							strncpy( trackInfo[trackNum].albumName, albumName, albumLen+1 );
+							trackInfo[*tracksOnPage].albumName = std::string( albumName );
 
-							tinyxml2::XMLError dateErr = trackElement->FirstChildElement( "date" )->QueryIntAttribute( "uts", &trackInfo[trackNum].dateUts );
+							tinyxml2::XMLError dateErr = trackElement->FirstChildElement( "date" )->QueryIntAttribute( "uts", &trackInfo[*tracksOnPage].dateUts );
 							if ( dateErr == tinyxml2::XML_NO_ERROR )
 							{
-								//wsprintf( parseMsg, L"%s - \"%s\", from _%s_ (%d}", trackInfo[trackNum].artistName, trackInfo[trackNum].trackName, trackInfo[trackNum].albumName, trackInfo[trackNum].dateUts );
-								//output->writeMessage( parseMsg );
-								++trackNum;
-								retVal = true;
+								++*tracksOnPage;
+
+								retVal = true; // return true if at least one track has a valid UTS date
 							}
 						}
+						else
+						{
+							output->writeMessage( L"Skipped 'nowplaying' track." );
+						}
 
-						trackElement = trackElement->PreviousSiblingElement(); // NextSiblingElement();
+						trackElement = trackElement->PreviousSiblingElement();
 					}
 				}
 				else
@@ -445,6 +463,23 @@ bool parseTempFile( TrackInfo* trackInfo )
 		}
 	}
 	return retVal;
+}
+
+void printTrack( int trackNum, TrackInfo track )
+{
+	size_t artistLen = track.artistName.length() + 1;
+	size_t trackLen = track.trackName.length() + 1;
+	size_t albumLen = track.albumName.length() + 1;
+	wchar_t artistName[256];
+	wchar_t trackName[256];
+	wchar_t albumName[256];
+	wchar_t printMsg[1024];
+
+	mbstowcs_s( NULL, artistName, artistLen, track.artistName.c_str(), _TRUNCATE );
+	mbstowcs_s( NULL, trackName, trackLen, track.trackName.c_str(), _TRUNCATE );
+	mbstowcs_s( NULL, albumName, albumLen, track.albumName.c_str(), _TRUNCATE );
+	wsprintf( printMsg, L"%d: %s - \"%s\", from _%s_ (%d)", trackNum, artistName, trackName, albumName, track.dateUts );
+	output->writeMessage( printMsg );
 }
 
 /*
