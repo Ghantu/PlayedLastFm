@@ -111,11 +111,8 @@ bool playedLastFmOutput::writeMessage( wchar_t* message )
 		return false;
 	}
 
-	// actually write out the message
-	std::wstring ws( message );
-	std::string msg( ws.begin(), ws.end() );
-	fwrite( msg.c_str(), sizeof( char ), strlen( msg.c_str() ), mOutputFile );
-	fwrite( "\n", sizeof( char ), strlen( "\n" ), mOutputFile );
+	fwprintf( mOutputFile, message );
+	fwprintf( mOutputFile, L"\n" );
 
 	return true;
 }
