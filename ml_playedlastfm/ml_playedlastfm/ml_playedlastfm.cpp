@@ -372,7 +372,78 @@ bool parseTempFile( int* numTracks )
 bool parseTempFile( TrackInfo* trackInfo )
 {
 	bool retVal = false;
+	wchar_t parseMsg[256];
+	int trackNum = 0;
 
+	tinyxml2::XMLDocument doc;
+	doc.LoadFile( "C:\\temp\\played.xml" );
+
+	int parseError = doc.ErrorID();
+	if ( parseError == 0 )
+	{
+		tinyxml2::XMLElement* lfmElement = doc.FirstChildElement();
+
+		if ( lfmElement )
+		{
+			if ( lfmElement->Attribute( "status", "ok" ) )
+			{
+				output->writeMessage( L"<lfm> status was ok." );
+				tinyxml2::XMLElement* recentTracksElement = lfmElement->FirstChildElement();
+
+				if ( recentTracksElement )
+				{
+					tinyxml2::XMLElement* trackElement = recentTracksElement->LastChildElement(); // FirstChildElement();
+					while ( trackElement && trackNum < TRACKS_PER_PAGE )
+					{
+						if ( !trackElement->Attribute( "nowplaying", "true" ) )
+						{
+							const char* artistName = (trackElement->FirstChildElement( "artist" )->GetText());
+							if ( !artistName ) { artistName = ""; }
+							size_t artistLen = strlen(artistName);
+							trackInfo[trackNum].artistName = new char[artistLen+1];
+							strncpy( trackInfo[trackNum].artistName, artistName, artistLen+1 );
+
+							const char* trackName = (trackElement->FirstChildElement( "name" )->GetText());
+							if ( !trackName ) { trackName = ""; }
+							size_t trackLen = strlen(trackName);
+							trackInfo[trackNum].trackName = new char[artistLen+1];
+							strncpy( trackInfo[trackNum].trackName, trackName, trackLen+1 );
+
+							const char* albumName = (trackElement->FirstChildElement( "album" )->GetText());
+							if ( !albumName ) { albumName = ""; }
+							size_t albumLen = strlen(albumName);
+							trackInfo[trackNum].albumName = new char[artistLen+1];
+							strncpy( trackInfo[trackNum].albumName, albumName, albumLen+1 );
+
+							tinyxml2::XMLError dateErr = trackElement->FirstChildElement( "date" )->QueryIntAttribute( "uts", &trackInfo[trackNum].dateUts );
+							if ( dateErr == tinyxml2::XML_NO_ERROR )
+							{
+								//wsprintf( parseMsg, L"%s - \"%s\", from _%s_ (%d}", trackInfo[trackNum].artistName, trackInfo[trackNum].trackName, trackInfo[trackNum].albumName, trackInfo[trackNum].dateUts );
+								//output->writeMessage( parseMsg );
+								++trackNum;
+								retVal = true;
+							}
+						}
+
+						trackElement = trackElement->PreviousSiblingElement(); // NextSiblingElement();
+					}
+				}
+				else
+				{
+					output->writeMessage( L"Couldn't find recent tracks element!" );
+				}
+			}
+			else
+			{
+				// Handle errors -- see www.last.fm/api
+				output->writeMessage( L"<lfm> status was not ok!" );
+			}
+		}
+		else
+		{
+			output->writeMessage( L"Didn't find an <lfm> element!" );
+		}
+	}
 	return retVal;
 }
 

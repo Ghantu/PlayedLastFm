@@ -25,6 +25,10 @@ class playedLastFmOutput;
 
 typedef struct 
 {
+	char* artistName;
+	char* trackName;
+	char* albumName;
+	int dateUts;
 } TrackInfo;
 
 int          init( void );
