@@ -86,7 +86,7 @@ INT_PTR MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR p
 		param2,
 		param3
 		);
-	//output->writeMessage( msg );
+	output->writeMessage( msg );
 	return NULL;
 }
 
@@ -218,21 +218,16 @@ void performLastFmSync()
 						for ( int trackNum = 0; trackNum < tracksOnPage; ++trackNum )
 						{
 							//   for each track in page
-							printTrack( trackNum, trackInfo[trackNum] );
+							//printTrack( trackNum, trackInfo[trackNum] );
 
-							//     query from media library 
-							//     update timestamp
-							//     ++numplays
-							//     if last track in page
-							if ( trackNum == tracksOnPage - 1 )
+							if ( updateTrack( trackInfo[trackNum] ) )
 							{
-								//       update lastSyncTime
-								lastSyncTime = trackInfo[trackNum].dateUts + 1;
-								wsprintf( syncMessage, L"Finished parsing page %d, set lastSynctime to %d.", page, lastSyncTime );
-								output->writeMessage( syncMessage );
 							}
-
 						}
+						//     if last track in page, update lastSyncTime
+						lastSyncTime = trackInfo[tracksOnPage - 1].dateUts + 1;
+						wsprintf( syncMessage, L"Finished parsing page %d, set lastSynctime to %d.", page, lastSyncTime );
+						output->writeMessage( syncMessage );
 					}
 					else
 					{
@@ -482,6 +477,57 @@ void printTrack( int trackNum, TrackInfo track )
 	output->writeMessage( printMsg );
 }
 
+bool updateTrack( TrackInfo track )
+{
+	bool retVal = false;
+
+	//     query from media library
+	mlQueryStructW trackQuery;
+	wchar_t queryString[1024];
+	wchar_t queryMsg[1024];
+	size_t artistLen = track.artistName.length() + 1;
+	size_t trackLen = track.trackName.length() + 1;
+	size_t albumLen = track.albumName.length() + 1;
+	wchar_t artistName[256];
+	wchar_t trackName[256];
+	wchar_t albumName[256];
+	wchar_t printMsg[1024];
+
+	mbstowcs_s( NULL, artistName, artistLen, track.artistName.c_str(), _TRUNCATE );
+	mbstowcs_s( NULL, trackName, trackLen, track.trackName.c_str(), _TRUNCATE );
+	mbstowcs_s( NULL, albumName, albumLen, track.albumName.c_str(), _TRUNCATE );
+	wsprintf( queryString, L"(artist == \"%s\")", artistName ); //, trackName, albumName );
+	trackQuery.query = queryString;	
+	trackQuery.max_results = 10;
+	SendMessage( PlayedLastFm.hwndWinampParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW );
+	wsprintf( queryMsg, L"Query string '%s' got %d matches.", queryString, trackQuery.results.Size );
+	output->writeMessage( queryMsg );
+
+	if ( trackQuery.results.Size == 0 )
+	{
+		/*
+		// No match, try without album
+		wsprintf( queryString, L"(artist == \"%s\") AND (title == \"%s\")", artistName, trackName );
+		trackQuery.query = queryString;	
+		trackQuery.max_results = 0;
+		SendMessage( PlayedLastFm.hwndWinampParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW );
+
+		if ( trackQuery.results.Size == 0 )
+		{*/
+			return retVal;
+		/*}*/
+	}
+
+	// We got a match!
+	if ( trackQuery.results.Items[0].lastplay < track.dateUts )
+	{
+		//     update timestamp
+		//     ++numplays
+		retVal = true;
+	}
+
+	return retVal;
+}
 /*
 IPC_INETAVAILABLE
 

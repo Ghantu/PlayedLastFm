@@ -44,6 +44,7 @@ bool         parseTempFile( int* numTracks );
 bool         parseTempFile( TrackInfo* trackInfo, int* tracksOnPage );
 void         printTrack( int trackNum, TrackInfo track );
 bool         queryLastFm( int limit, int page );
+bool         updateTrack( TrackInfo trackInfo );
 
 time_t  lastSyncTime;
 time_t  currentSyncTime;
