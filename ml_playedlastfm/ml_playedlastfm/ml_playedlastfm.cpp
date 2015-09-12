@@ -499,7 +499,7 @@ bool updateTrack( TrackInfo track )
 	wsprintf( queryString, L"(artist == \"%s\")", artistName ); //, trackName, albumName );
 	trackQuery.query = queryString;	
 	trackQuery.max_results = 10;
-	SendMessage( PlayedLastFm.hwndWinampParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW );
+	SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW );
 	wsprintf( queryMsg, L"Query string '%s' got %d matches.", queryString, trackQuery.results.Size );
 	output->writeMessage( queryMsg );
 
