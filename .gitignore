@@ -1,4 +1,4 @@
 *.log
-ml_playedlastfm/ml_playedlastfm/Debug/ml_playedlastfm.unsuccessfulbuild
+ml_playedlastfm/ml_playedlastfm/Debug/*
 *.suo
 ml_playedlastfm/ml_playedlastfm/~AutoRecover.ml_playedlastfm.vcxproj
