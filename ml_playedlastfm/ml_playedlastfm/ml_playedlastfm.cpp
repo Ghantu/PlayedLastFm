@@ -33,7 +33,9 @@ winampMediaLibraryPlugin PlayedLastFm =
 // Reads config values from ini file
 int init()
 {
-	MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
+	// Uncomment to give yourself a chance to attach to process before we start executing
+	//MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
+
 	quitThread = false;
 	output = new playedLastFmOutput( PlayedLastFm.hwndWinampParent );
 	threadHandle = CreateThread(
@@ -132,6 +134,7 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 			StringCbPrintfW( syncString, 256, L" (greater than %ld); performing sync.", syncInterval ); 
 			wcscat_s( msg, syncString );
 			output->writeMessage( msg );
+
 			performLastFmSync();
 			if ( performOnce )
 			{
@@ -146,7 +149,7 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 	output->writeMessage( lastFmUsername );
 	wchar_t syncTimeStr[64];
 	wsprintf( syncTimeStr, L"%d", lastSyncTime );
-	//WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
+	WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
 	output->writeMessage( syncTimeStr );
 
 	return 0;
@@ -199,7 +202,7 @@ void performLastFmSync()
 			output->writeMessage( syncMessage );
 
 			// for each page i from n...i...1
-			for ( int page = numPages; page > numPages - 1; --page )
+			for ( int page = numPages; page > 1; --page )
 			{
 				//   check if we should quit
 				if ( quitThread )
