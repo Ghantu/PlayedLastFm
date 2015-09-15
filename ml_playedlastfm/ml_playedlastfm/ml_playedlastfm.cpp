@@ -33,7 +33,9 @@ winampMediaLibraryPlugin PlayedLastFm =
 // Reads config values from ini file
 int init()
 {
-	MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
+	// Uncomment to give yourself a chance to attach to process before we start executing
+	//MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
+
 	quitThread = false;
 	output = new playedLastFmOutput( PlayedLastFm.hwndWinampParent );
 	threadHandle = CreateThread(
@@ -86,7 +88,10 @@ INT_PTR MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR p
 		param2,
 		param3
 		);
-	//output->writeMessage( msg );
+	if ( output )
+	{
+		output->writeMessage( msg );
+	}
 	return NULL;
 }
 
@@ -103,6 +108,7 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 {
 	const size_t kPathLen = 512;
 	wchar_t iniPath[kPathLen];
+	bool performOnce = false;
 	getInitFileName( iniPath, kPathLen );
 	output->writeMessage( iniPath );
 	GetPrivateProfileString( L"playedlastfm", L"Username", NULL, lastFmUsername, 256, iniPath );
@@ -128,17 +134,22 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 			StringCbPrintfW( syncString, 256, L" (greater than %ld); performing sync.", syncInterval ); 
 			wcscat_s( msg, syncString );
 			output->writeMessage( msg );
+
 			performLastFmSync();
+			if ( performOnce )
+			{
+				break;
+			}
 		}
 		Sleep( 100 ); // one tenth of a second -- want to respond quickly to quitThread becoming true
 	}
 
 	output->writeMessage( iniPath );
-	//WritePrivateProfileString( L"playedlastfm", L"Username", lastFmUsername, iniPath );
+	WritePrivateProfileString( L"playedlastfm", L"Username", lastFmUsername, iniPath );
 	output->writeMessage( lastFmUsername );
 	wchar_t syncTimeStr[64];
 	wsprintf( syncTimeStr, L"%d", lastSyncTime );
-	//WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
+	WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
 	output->writeMessage( syncTimeStr );
 
 	return 0;
@@ -191,7 +202,7 @@ void performLastFmSync()
 			output->writeMessage( syncMessage );
 
 			// for each page i from n...i...1
-			for ( int page = numPages; page > numPages - 1; --page )
+			for ( int page = numPages; page > 0; --page )
 			{
 				//   check if we should quit
 				if ( quitThread )
@@ -213,25 +224,27 @@ void performLastFmSync()
 
 					if ( parseTempFile( trackInfo, &tracksOnPage ) )
 					{
+						bool queryReturn;
 						wsprintf( syncMessage, L"Parsed %d tracks from page %d.", tracksOnPage, page );
 						output->writeMessage( syncMessage );
 						for ( int trackNum = 0; trackNum < tracksOnPage; ++trackNum )
 						{
 							//   for each track in page
-							printTrack( trackNum, trackInfo[trackNum] );
+							//printTrack( trackNum, trackInfo[trackNum] );
 
-							//     query from media library 
-							//     update timestamp
-							//     ++numplays
-							//     if last track in page
-							if ( trackNum == tracksOnPage - 1 )
+							queryReturn = updateTrack( trackInfo[trackNum] );
+							if ( !queryReturn )
 							{
-								//       update lastSyncTime
-								lastSyncTime = trackInfo[trackNum].dateUts + 1;
-								wsprintf( syncMessage, L"Finished parsing page %d, set lastSynctime to %d.", page, lastSyncTime );
-								output->writeMessage( syncMessage );
+								break;
 							}
+						}
 
+						if ( queryReturn )
+						{
+							//     if last track in page, update lastSyncTime
+							lastSyncTime = trackInfo[tracksOnPage - 1].dateUts + 1;
+							wsprintf( syncMessage, L"Finished parsing page %d, set lastSynctime to %d.", page, lastSyncTime );
+							output->writeMessage( syncMessage );
 						}
 					}
 					else
@@ -248,6 +261,13 @@ void performLastFmSync()
 			}
 
 			output->writeMessage( L"Finished updating tracks!" );
+
+			if ( numTracks == 0 )
+			{
+				lastSyncTime = currentSyncTime;
+				wsprintf( syncMessage, L"Found %d tracks, set lastSynctime to %d.", numTracks, lastSyncTime );
+				output->writeMessage( syncMessage );
+			}
 		}
 		else
 		{
@@ -482,15 +502,117 @@ void printTrack( int trackNum, TrackInfo track )
 	output->writeMessage( printMsg );
 }
 
-/*
-IPC_INETAVAILABLE
+bool updateTrack( TrackInfo track )
+{
+	bool retVal = false;
 
-IPC_GETHTTPGETTER
+	//     query from media library
+	mlQueryStructW trackQuery;
+	wchar_t queryString[1024];
+	wchar_t queryMsg[1024];
+	size_t artistLen = track.artistName.length() + 1;
+	size_t trackLen = track.trackName.length() + 1;
+	size_t albumLen = track.albumName.length() + 1;
+	wchar_t artistName[256];
+	wchar_t trackName[256];
+	wchar_t albumName[256];
+	wchar_t printMsg[1024];
+	LRESULT queryReturn;
 
-IPC_GETHTTPGETTERW
+	mbstowcs_s( NULL, artistName, artistLen, track.artistName.c_str(), _TRUNCATE );
+	mbstowcs_s( NULL, trackName, trackLen, track.trackName.c_str(), _TRUNCATE );
+	mbstowcs_s( NULL, albumName, albumLen, track.albumName.c_str(), _TRUNCATE );
+	wsprintf( queryString, L"(artist == \"%s\") AND (title == \"%s\")", artistName, trackName );
+	trackQuery.query = queryString;	
+	trackQuery.max_results = 0;
 
-IPC_GET_EXTENDED_FILE_INFO
+	if ( ( queryReturn = SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW ) ) != 0 )
+	{
+		retVal = true;
 
-IPC_SET_EXTENDED_FILE_INFO
-IPC_WRITE_EXTENDED_FILE_INFO
-*/
+		if ( trackQuery.results.Size > 0 )
+		{
+			// We got a match!
+			int item = 0;
+			bool matched = false;
+
+			if ( trackQuery.results.Size > 1 )
+			{
+				int maxRating = 0;
+				int itemMaxRated = 0;
+				__time64_t mostRecent = 0;
+				int itemMostRecent = 0;
+				for ( ;  item < trackQuery.results.Size; ++item )
+				{
+					// figure out which one is highest rated
+					if ( trackQuery.results.Items[item].rating > maxRating )
+					{
+						maxRating = trackQuery.results.Items[item].rating;
+						itemMaxRated = item;
+					}
+					// figure out which one was played most recently
+					if ( trackQuery.results.Items[item].lastplay > mostRecent )
+					{
+						mostRecent = trackQuery.results.Items[item].lastplay;
+						itemMostRecent = item;
+					}
+					// disambiguate by album
+					wsprintf( queryMsg, L"Checking album -- '%s' vs '%s'", albumName, trackQuery.results.Items[item].album );
+					output->writeMessage( queryMsg );
+					if ( lstrcmpiW( albumName, trackQuery.results.Items[item].album ) == 0 )
+					{
+						output->writeMessage( L"Matched!" );
+						matched = true;
+						break;
+					}
+				}
+
+				if ( !matched )
+				{
+					output->writeMessage( L"No album matches!" );
+					// disambiguate by rating or lastplay
+					if ( maxRating != 0 )
+					{
+						item = itemMaxRated;
+					}
+					else
+					{
+						item = itemMostRecent;
+					}
+				}
+			}
+
+			if ( trackQuery.results.Items[item].lastplay < track.dateUts )
+			{
+				//itemRecordListW* trackRecords = new itemRecordListW;
+				//copyRecordList( trackRecords, &trackQuery.results );
+				//trackRecords->Items[item].lastplay = track.dateUts;
+				//++trackRecords->Items[item].playcount;
+				//SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)&trackRecords->Items[item], ML_IPC_DB_UPDATEITEMW );
+				//delete trackRecords;
+
+				//     update timestamp
+				trackQuery.results.Items[item].lastplay = track.dateUts;
+				//     ++numplays
+				++trackQuery.results.Items[item].playcount;
+
+				SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)&trackQuery.results.Items[item], ML_IPC_DB_UPDATEITEMW );
+
+			}
+		}
+		else
+		{
+			wsprintf( queryMsg, L"No match for %s - '%s'", artistName, trackName );
+			output->writeMessage( queryMsg );
+		}
+	}
+	else
+	{
+		wsprintf( queryMsg, L"Query string '%s' got %d matches, returned %d.", queryString, trackQuery.results.Size, queryReturn );
+		output->writeMessage( queryMsg );
+	}
+
+	Sleep( 1 ); // just to back off the rate on queries a bit
+	SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_FREEQUERYRESULTSW );
+	return retVal;
+}
