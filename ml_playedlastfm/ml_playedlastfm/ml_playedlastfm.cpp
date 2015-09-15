@@ -202,7 +202,7 @@ void performLastFmSync()
 			output->writeMessage( syncMessage );
 
 			// for each page i from n...i...1
-			for ( int page = numPages; page > 1; --page )
+			for ( int page = numPages; page > 0; --page )
 			{
 				//   check if we should quit
 				if ( quitThread )
@@ -261,6 +261,13 @@ void performLastFmSync()
 			}
 
 			output->writeMessage( L"Finished updating tracks!" );
+
+			if ( numTracks == 0 )
+			{
+				lastSyncTime = currentSyncTime;
+				wsprintf( syncMessage, L"Found %d tracks, set lastSynctime to %d.", numTracks, lastSyncTime );
+				output->writeMessage( syncMessage );
+			}
 		}
 		else
 		{
