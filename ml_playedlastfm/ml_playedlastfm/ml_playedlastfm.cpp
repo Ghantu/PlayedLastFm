@@ -81,17 +81,6 @@ void quit()
 // to other plugins
 INT_PTR MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR param3 )
 {
-	wchar_t msg[1024];
-	wsprintf( msg, L"MessageProc called with message type %x, param1 %x, param2 %x, param3 %x",
-		message_type,
-		param1,
-		param2,
-		param3
-		);
-	if ( output )
-	{
-		output->writeMessage( msg );
-	}
 	return NULL;
 }
 
