@@ -80,13 +80,6 @@ bool playedLastFmOutput::openFile()
 				else
 				{
 					// Failed to open file
-					MessageBox( mWinampHandle, L"_wfopen_s failed, trying _wfopen", L"", MB_OK );
-					if ( ( mOutputFile = _wfopen( logPath, L"at" ) ) != NULL )
-					{
-						mIsOpen = true;
-						return true;
-					}
-
 					return false;
 				}
 			}
