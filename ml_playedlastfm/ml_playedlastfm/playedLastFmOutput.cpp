@@ -9,9 +9,31 @@ const wchar_t* playedLastFmOutput::kLogFilename = L"\\Plugins\\ml_playedlastfm.l
 
 playedLastFmOutput::playedLastFmOutput( HWND winampHandle )
 	: mIsOpen( false ),
-	mWinampHandle( winampHandle ),
 	mOutputFile( NULL )
 {
+	size_t convertedChars = 0;
+
+	char *dir = (char*)SendMessage( winampHandle, WM_WA_IPC, 0, IPC_GETINIDIRECTORY );
+	if ( dir != NULL )
+	{
+		size_t origsize = strlen( dir ) + 1;
+		if ( origsize <= kPathLen )
+		{
+			mbstowcs_s( &convertedChars, mLogPath, origsize, dir, _TRUNCATE );
+			wcscat_s( mLogPath, kPathLen, kLogFilename );
+			mFilenameValid = true;
+		}
+		else
+		{
+			// Not enough buffer to hold the path... ?!
+			mFilenameValid = false;
+		}
+	}
+	else
+	{
+		// IPC_GETINIDIRECTORY failed?!
+		mFilenameValid = false;
+	}
 }
 
 
@@ -58,40 +80,23 @@ bool playedLastFmOutput::openFile()
 	}
 	else
 	{
-		const size_t kPathLen = 512;
-		wchar_t logPath[kPathLen];
-		size_t convertedChars = 0;
-		errno_t fileOpenError;
-
-		char *dir = (char*)SendMessage( mWinampHandle, WM_WA_IPC, 0, IPC_GETINIDIRECTORY );
-		if ( dir != NULL )
+		if ( mFilenameValid )
 		{
-
-			size_t origsize = strlen( dir ) + 1;
-			if ( origsize <= kPathLen )
+			errno_t fileOpenError;
+			if ( ( fileOpenError = _wfopen_s( &mOutputFile, mLogPath, L"at" ) ) == 0 )
 			{
-				mbstowcs_s( &convertedChars, logPath, origsize, dir, _TRUNCATE );
-				wcscat_s( logPath, kPathLen, kLogFilename );
-				if ( ( fileOpenError = _wfopen_s( &mOutputFile, logPath, L"at" ) ) == 0 )
-				{
-					mIsOpen = true;
-					return true;
-				}
-				else
-				{
-					// Failed to open file
-					return false;
-				}
+				mIsOpen = true;
+				return true;
 			}
 			else
 			{
-				// Not enough buffer to hold the path... ?!
+				// Failed to open file
 				return false;
 			}
 		}
 		else
 		{
-			// IPC_GETINIDIRECTORY failed?!
+			// failed to establish the filename and path in constructor
 			return false;
 		}
 	}

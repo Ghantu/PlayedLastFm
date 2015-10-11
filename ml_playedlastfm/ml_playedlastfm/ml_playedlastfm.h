@@ -22,7 +22,11 @@
 #define SYNC_INTERVAL 60 * 60
 #define TEMP_FILE_PATH L"C:\\temp\\played.xml"
 #define TRACKS_PER_PAGE 200
+
+// If this is false, everything will execute except the actual track-update query
 #define COMMIT true
+
+// Set this to true to pop up a message box at startup, so you have time to attach the debugger
 #define DEBUG_PLFM false
 
 class playedLastFmOutput;

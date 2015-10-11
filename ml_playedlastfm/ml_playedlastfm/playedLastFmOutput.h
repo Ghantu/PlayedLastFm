@@ -18,7 +18,10 @@ private:
 	bool openFile();
 
 	bool  mIsOpen;
-	HWND  mWinampHandle;
 	FILE* mOutputFile;
+
+	static const size_t kPathLen = 512;
+	wchar_t      mLogPath[kPathLen];
+	bool         mFilenameValid;
 };
 

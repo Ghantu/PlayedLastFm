@@ -64,11 +64,11 @@ void quit()
 		output->writeMessage( L"Failed waiting for thread." );
 		break;
 	case WAIT_OBJECT_0:
-		output->writeMessage( L"The state of the specified object is signaled." );
+		output->writeMessage( L"Thread stopped successfully." );
 		CloseHandle( threadHandle );
 		break;
 	case WAIT_TIMEOUT:
-		output->writeMessage( L"The time-out interval elapsed, and the object's state is nonsignaled." );
+		output->writeMessage( L"Thread did not stop before timeout." );
 		break;
 	default:
 		output->writeMessage( L"Unknown return code." );
