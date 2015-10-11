@@ -129,6 +129,7 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 			output->writeMessage( msg );
 
 			performLastFmSync();
+			output->closeFile();
 			if ( performOnce )
 			{
 				break;
