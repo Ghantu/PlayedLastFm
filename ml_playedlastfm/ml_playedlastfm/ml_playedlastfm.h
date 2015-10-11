@@ -22,6 +22,8 @@
 #define SYNC_INTERVAL 60 * 60
 #define TEMP_FILE_PATH L"C:\\temp\\played.xml"
 #define TRACKS_PER_PAGE 200
+#define COMMIT true
+#define DEBUG_PLFM false
 
 class playedLastFmOutput;
 
@@ -45,6 +47,7 @@ bool         parseTempFile( TrackInfo* trackInfo, int* tracksOnPage );
 void         printTrack( int trackNum, TrackInfo track );
 bool         queryLastFm( int limit, int page );
 bool         updateTrack( TrackInfo trackInfo );
+bool         testUtf8( char* u8string );
 
 time_t  lastSyncTime;
 time_t  currentSyncTime;

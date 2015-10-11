@@ -9,12 +9,12 @@ public:
 	playedLastFmOutput( HWND winampHandle );
 	~playedLastFmOutput(void);
 
+	bool closeFile();
 	bool writeMessage( wchar_t* message );
 
 	static const wchar_t* kLogFilename;
 
 private:
-	bool closeFile();
 	bool openFile();
 
 	bool  mIsOpen;

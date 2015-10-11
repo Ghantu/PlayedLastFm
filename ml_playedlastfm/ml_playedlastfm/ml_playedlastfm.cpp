@@ -33,8 +33,10 @@ winampMediaLibraryPlugin PlayedLastFm =
 // Reads config values from ini file
 int init()
 {
-	// Uncomment to give yourself a chance to attach to process before we start executing
-	//MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
+	if ( DEBUG_PLFM )
+	{
+		MessageBox( PlayedLastFm.hwndWinampParent, L"PlayedLastFm!", L"", MB_OK );
+	}
 
 	quitThread = false;
 	output = new playedLastFmOutput( PlayedLastFm.hwndWinampParent );
@@ -81,7 +83,7 @@ void quit()
 // to other plugins
 INT_PTR MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR param3 )
 {
-	return NULL;
+	return 0;
 }
 
 // This is an export function called by winamp which returns this plugin info.
@@ -98,14 +100,16 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 	const size_t kPathLen = 512;
 	wchar_t iniPath[kPathLen];
 	bool performOnce = false;
+	bool doUtf8Test = false;
+
 	getInitFileName( iniPath, kPathLen );
-	output->writeMessage( iniPath );
+	//output->writeMessage( iniPath );
 	GetPrivateProfileString( L"playedlastfm", L"Username", NULL, lastFmUsername, 256, iniPath );
-	output->writeMessage( lastFmUsername );
+	//output->writeMessage( lastFmUsername );
 	lastSyncTime = GetPrivateProfileInt( L"playedlastfm", L"lastsync", 0, iniPath );
 	wchar_t msg[256];
 	wsprintf( msg, L"Last sync time is %d", lastSyncTime );
-	output->writeMessage( msg );
+	//output->writeMessage( msg );
 	syncInterval = SYNC_INTERVAL;
 
 	while ( !quitThread )
@@ -125,21 +129,32 @@ DWORD WINAPI PlayedLastFmThread( LPVOID lpParam )
 			output->writeMessage( msg );
 
 			performLastFmSync();
+			output->closeFile();
 			if ( performOnce )
 			{
 				break;
 			}
 		}
+		if ( DEBUG_PLFM && doUtf8Test )
+		{
+			testUtf8( "fun." );
+			testUtf8( "BjÃ¶rk" ); // "BjÃ¶rk" 0066 0106 0195 0182 0114 0107 B j Ã ¶ r k
+			testUtf8( "Rx Bandits" );
+			doUtf8Test = false;
+		}
 		Sleep( 100 ); // one tenth of a second -- want to respond quickly to quitThread becoming true
 	}
 
-	output->writeMessage( iniPath );
+	//output->writeMessage( iniPath );
 	WritePrivateProfileString( L"playedlastfm", L"Username", lastFmUsername, iniPath );
-	output->writeMessage( lastFmUsername );
+	//output->writeMessage( lastFmUsername );
 	wchar_t syncTimeStr[64];
 	wsprintf( syncTimeStr, L"%d", lastSyncTime );
-	WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
-	output->writeMessage( syncTimeStr );
+	if ( COMMIT )
+	{
+		WritePrivateProfileString( L"playedlastfm", L"lastsync", syncTimeStr, iniPath );
+	}
+	//output->writeMessage( syncTimeStr );
 
 	return 0;
 }
@@ -293,8 +308,8 @@ bool queryLastFm( int limit, int page )
 		}
 		else
 		{
-			wsprintf( queryMsg,  L"Accessed URL '%s'.", req ); 
-			output->writeMessage( queryMsg );
+			//wsprintf( queryMsg,  L"Accessed URL '%s'.", req ); 
+			//output->writeMessage( queryMsg );
 
 			DWORD totalBytes = 0;
 			FILE * tempFile;
@@ -309,15 +324,15 @@ bool queryLastFm( int limit, int page )
 				{
 					if ( bytesRead == 0 )
 					{
-						output->writeMessage( L"Reached end of file!" );
+						//output->writeMessage( L"Reached end of file!" );
 						break;
 					}
 
 					fwrite( buffer, sizeof( char ), bytesRead, tempFile );
 					totalBytes += bytesRead;
-					wchar_t writeMessage[256];
-					wsprintf( writeMessage, L"Wrote %d bytes to temp file", bytesRead );
-					output->writeMessage( writeMessage );
+					//wchar_t writeMessage[256];
+					//wsprintf( writeMessage, L"Wrote %d bytes to temp file", bytesRead );
+					//output->writeMessage( writeMessage );
 
 				}
 
@@ -325,7 +340,7 @@ bool queryLastFm( int limit, int page )
 
 				wchar_t closeMessage[256];
 				wsprintf( closeMessage, L"Closed temp file, wrote %d bytes", totalBytes );
-				output->writeMessage( closeMessage );
+				//output->writeMessage( closeMessage );
 				returnVal = true;
 			}
 			else
@@ -373,7 +388,7 @@ bool parseTempFile( int* numTracks )
 				else if ( playsError == tinyxml2::XML_NO_ERROR )
 				{
 					wsprintf( parseMsg, L"total plays: %d", *numTracks );
-					output->writeMessage( parseMsg );
+					//output->writeMessage( parseMsg );
 					retVal = true;
 				}
 				else
@@ -417,7 +432,7 @@ bool parseTempFile( TrackInfo* trackInfo, int* tracksOnPage )
 		{
 			if ( lfmElement->Attribute( "status", "ok" ) )
 			{
-				output->writeMessage( L"<lfm> status was ok." );
+				//output->writeMessage( L"<lfm> status was ok." );
 				tinyxml2::XMLElement* recentTracksElement = lfmElement->FirstChildElement();
 
 				if ( recentTracksElement )
@@ -462,7 +477,7 @@ bool parseTempFile( TrackInfo* trackInfo, int* tracksOnPage )
 			}
 			else
 			{
-				// Handle errors -- see www.last.fm/api
+				// TODO: Handle errors -- see www.last.fm/api
 				output->writeMessage( L"<lfm> status was not ok!" );
 			}
 		}
@@ -499,23 +514,29 @@ bool updateTrack( TrackInfo track )
 	mlQueryStructW trackQuery;
 	wchar_t queryString[1024];
 	wchar_t queryMsg[1024];
-	size_t artistLen = track.artistName.length() + 1;
-	size_t trackLen = track.trackName.length() + 1;
-	size_t albumLen = track.albumName.length() + 1;
+	wchar_t dateMsg[16];
+	wchar_t matchMsg[128];
+	size_t artistLen = MultiByteToWideChar( CP_UTF8, 0, track.artistName.c_str(), -1, NULL, 0 ); // track.artistName.length() + 1;
+	size_t trackLen = MultiByteToWideChar( CP_UTF8, 0, track.trackName.c_str(), -1, NULL, 0 ); // track.trackName.length() + 1;
+	size_t albumLen = MultiByteToWideChar( CP_UTF8, 0, track.albumName.c_str(), -1, NULL, 0 ); // track.albumName.length() + 1;
 	wchar_t artistName[256];
 	wchar_t trackName[256];
 	wchar_t albumName[256];
 	wchar_t printMsg[1024];
 	LRESULT queryReturn;
 
-	mbstowcs_s( NULL, artistName, artistLen, track.artistName.c_str(), _TRUNCATE );
-	mbstowcs_s( NULL, trackName, trackLen, track.trackName.c_str(), _TRUNCATE );
-	mbstowcs_s( NULL, albumName, albumLen, track.albumName.c_str(), _TRUNCATE );
+	MultiByteToWideChar(CP_UTF8, 0, track.artistName.c_str(), -1, artistName, artistLen); //mbstowcs_s( NULL, artistName, artistLen, track.artistName.c_str(), _TRUNCATE );
+	MultiByteToWideChar(CP_UTF8, 0, track.trackName.c_str(), -1, trackName, trackLen); //mbstowcs_s( NULL, trackName, trackLen, track.trackName.c_str(), _TRUNCATE );
+	MultiByteToWideChar(CP_UTF8, 0, track.albumName.c_str(), -1, albumName, albumLen); //mbstowcs_s( NULL, albumName, albumLen, track.albumName.c_str(), _TRUNCATE );
 	wsprintf( queryString, L"(artist == \"%s\") AND (title == \"%s\")", artistName, trackName );
+	//trackQuery.results.Alloc = 0;
+	//trackQuery.results.Size = -1;
+	//trackQuery.results.Items = NULL;
 	trackQuery.query = queryString;	
 	trackQuery.max_results = 0;
 
-	if ( ( queryReturn = SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW ) ) != 0 )
+	if ( ( queryReturn = SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW ) ) != 0
+		&& trackQuery.results.Size > -1 )
 	{
 		retVal = true;
 
@@ -527,9 +548,9 @@ bool updateTrack( TrackInfo track )
 
 			if ( trackQuery.results.Size > 1 )
 			{
-				int maxRating = 0;
+				int maxRating = -1;
 				int itemMaxRated = 0;
-				__time64_t mostRecent = 0;
+				__time64_t mostRecent = -1;
 				int itemMostRecent = 0;
 				for ( ;  item < trackQuery.results.Size; ++item )
 				{
@@ -547,10 +568,10 @@ bool updateTrack( TrackInfo track )
 					}
 					// disambiguate by album
 					wsprintf( queryMsg, L"Checking album -- '%s' vs '%s'", albumName, trackQuery.results.Items[item].album );
-					output->writeMessage( queryMsg );
+					//output->writeMessage( queryMsg );
 					if ( lstrcmpiW( albumName, trackQuery.results.Items[item].album ) == 0 )
 					{
-						output->writeMessage( L"Matched!" );
+						wsprintf( matchMsg, L"matched by album" );
 						matched = true;
 						break;
 					}
@@ -558,18 +579,55 @@ bool updateTrack( TrackInfo track )
 
 				if ( !matched )
 				{
-					output->writeMessage( L"No album matches!" );
+					//output->writeMessage( L"No album matches!" );
 					// disambiguate by rating or lastplay
-					if ( maxRating != 0 )
+					if ( maxRating != -1 )
 					{
+						wsprintf( matchMsg, L"matched highest rating %d", maxRating );
 						item = itemMaxRated;
 					}
 					else
 					{
+						struct tm dateFromUts;
+						
+						errno_t gmt_return = gmtime_s( &dateFromUts, &mostRecent );
+
+						if ( gmt_return == 0 )
+						{
+							wcsftime( dateMsg, 16, L"%Y-%m-%d", &dateFromUts );
+							wsprintf( matchMsg, L"most recently played %s", dateMsg );
+						}
 						item = itemMostRecent;
 					}
 				}
 			}
+			else
+			{
+				wsprintf( matchMsg, L"only match" );
+			}
+
+			struct tm dateFromUts;
+			time_t dateUts = track.dateUts;
+			errno_t gmt_return = gmtime_s( &dateFromUts, &dateUts );
+
+			if ( gmt_return == 0 )
+			{
+				wcsftime( dateMsg, 16, L"%Y-%m-%d", &dateFromUts );
+				wsprintf( queryMsg, L"Updating '%s %d %s %d %s' with play %d on %s, %s",
+					trackQuery.results.Items[item].artist,
+					trackQuery.results.Items[item].year,
+					trackQuery.results.Items[item].album,
+					trackQuery.results.Items[item].track,
+					trackQuery.results.Items[item].title,
+					trackQuery.results.Items[item].playcount + 1,
+					dateMsg,
+					matchMsg );
+			}
+			else
+			{
+				wsprintf( queryMsg, L"gmtime_s failed on %d, error was %d: '%s'", track.dateUts, gmt_return, _wcserror( gmt_return ) );
+			}
+			output->writeMessage( queryMsg );
 
 			if ( trackQuery.results.Items[item].lastplay < track.dateUts )
 			{
@@ -585,7 +643,10 @@ bool updateTrack( TrackInfo track )
 				//     ++numplays
 				++trackQuery.results.Items[item].playcount;
 
-				SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)&trackQuery.results.Items[item], ML_IPC_DB_UPDATEITEMW );
+				if ( COMMIT )
+				{
+					SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)&trackQuery.results.Items[item], ML_IPC_DB_UPDATEITEMW );
+				}
 
 			}
 		}
@@ -605,3 +666,84 @@ bool updateTrack( TrackInfo track )
 	SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_FREEQUERYRESULTSW );
 	return retVal;
 }
+
+bool testUtf8( char* u8string )
+{
+	std::string cppString( u8string );
+	wchar_t artistName[256];
+	size_t artistLen = cppString.length() + 1;
+	mlQueryStructW trackQuery;
+	wchar_t queryString[1024];
+	LRESULT queryReturn;
+	wchar_t testMsg[1024];
+
+	mbstowcs_s( NULL, artistName, artistLen, u8string, _TRUNCATE );
+	wsprintf( queryString, L"(artist == \"%s\")", artistName );
+	trackQuery.query = queryString;	
+	trackQuery.max_results = 0;
+	queryReturn = SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW );
+
+	if ( queryReturn > 0 )
+	{
+		if ( trackQuery.results.Size > 0 )
+		{
+			if ( trackQuery.results.Size < TRACKS_PER_PAGE )
+			{
+				wsprintf( testMsg, L"mbstowcs_s          found %d matches for '%s'", trackQuery.results.Size, queryString );
+				output->writeMessage( testMsg );
+			}
+			else
+			{
+				output->writeMessage( L"mbstowcs_s          failed!" );
+			}
+		}
+		else
+		{
+			wsprintf( testMsg, L"mbstowcs_s          couldn't match '%s' (converted from '%s')", artistName, u8string );
+			output->writeMessage( testMsg );
+		}
+	}
+	else
+	{
+		output->writeMessage( L"mbstowcs_s          failed!" );
+	}
+
+	SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_FREEQUERYRESULTSW );
+
+	artistLen = MultiByteToWideChar( CP_UTF8, 0, u8string, -1, NULL, 0 );
+	MultiByteToWideChar(CP_UTF8, 0, u8string, -1, artistName, artistLen);
+	wsprintf( queryString, L"(artist == \"%s\")", artistName );
+	trackQuery.query = queryString;	
+	trackQuery.max_results = 0;
+	queryReturn = SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_RUNQUERYW );
+
+	if ( queryReturn > 0 )
+	{
+		if ( trackQuery.results.Size > 0 )
+		{
+			if ( trackQuery.results.Size < TRACKS_PER_PAGE )
+			{
+				wsprintf( testMsg, L"MultiByteToWideChar found %d matches for '%s'", trackQuery.results.Size, queryString );
+				output->writeMessage( testMsg );
+			}
+			else
+			{
+				output->writeMessage( L"MultiByteToWideChar failed!" );
+			}
+		}
+		else
+		{
+			wsprintf( testMsg, L"MultiByteToWideChar couldn't match '%s' (converted from '%s')", artistName, u8string );
+			output->writeMessage( testMsg );
+		}
+	}
+	else
+	{
+		output->writeMessage( L"MultiByteToWideChar failed!" );
+	}
+
+	SendMessage( PlayedLastFm.hwndLibraryParent, WM_ML_IPC, (WPARAM)(&trackQuery), ML_IPC_DB_FREEQUERYRESULTSW );
+
+	return true;
+}
+
