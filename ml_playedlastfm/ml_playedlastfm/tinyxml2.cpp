@@ -34,8 +34,8 @@ static const char LINE_FEED				= (char)0x0a;			// all line endings are normalize
 static const char LF = LINE_FEED;
 static const char CARRIAGE_RETURN		= (char)0x0d;			// CR gets filtered out
 static const char CR = CARRIAGE_RETURN;
-static const char SINGLE_QUOTE			= '\'';
-static const char DOUBLE_QUOTE			= '\"';
+static const char SINGLE_QUOTE			= '\"';
+static const char DOUBLE_QUOTE			= '\'';
 
 // Bunch of unicode info at:
 //		http://www.unicode.org/faq/utf_bom.html
