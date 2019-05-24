@@ -39,24 +39,24 @@ typedef struct
 	int dateUts;
 } TrackInfo;
 
-int          init( void );
-void         quit( void );
-INT_PTR      MessageProc( int message_type, INT_PTR param1, INT_PTR param2, INT_PTR param3 );
-void         performLastFmSync();
-void         getInitFileName( wchar_t* filename, size_t numChars );
-DWORD WINAPI PlayedLastFmThread( LPVOID lpParam );
-time_t       getCurrentTime();
-bool         parseTempFile( int* numTracks );
-bool         parseTempFile( TrackInfo* trackInfo, int* tracksOnPage );
-void         printTrack( int trackNum, TrackInfo track );
-bool         queryLastFm( int limit, int page );
-bool         updateTrack( TrackInfo trackInfo );
-bool         testUtf8( char* u8string );
+int          init(void);
+void         quit(void);
+INT_PTR      MessageProc(int message_type, INT_PTR param1, INT_PTR param2, INT_PTR param3);
+void         performLastFmSync( );
+void         getInitFileName(wchar_t* filename, size_t numChars);
+DWORD WINAPI PlayedLastFmThread(LPVOID lpParam);
+time_t       getCurrentTime( );
+bool         parseTempFile(int* numTracks);
+bool         parseTempFile(TrackInfo* trackInfo, int* tracksOnPage);
+void         printTrack(int trackNum, TrackInfo track);
+bool         queryLastFm(int limit, int page);
+bool         updateTrack(TrackInfo trackInfo);
+bool         testUtf8(char* u8string);
 
 time_t  lastSyncTime;
 time_t  currentSyncTime;
 time_t  syncInterval;
-wchar_t lastFmUsername[256];
+wchar_t lastFmUsername[ 256 ];
 HANDLE  threadHandle;
 DWORD   threadId;
 bool    quitThread;
